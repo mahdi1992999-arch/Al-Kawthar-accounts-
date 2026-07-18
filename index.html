@@ -229,16 +229,21 @@ function setSyncBadge(ok) {
   el.className = ok ? 'sync-ok' : 'sync-err';
 }
 
+function enterApp() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('errBox').style.display = 'none';
+  document.getElementById('expDate').value = todayStr();
+  document.getElementById('revDate').value = todayStr();
+  startListen();
+}
+
 function doLogin() {
   var e = document.getElementById('inEmail').value.trim();
   var p = document.getElementById('inPass').value.trim();
   if (e === CREDS.email && p === CREDS.pass) {
-    document.getElementById('loginWrap').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('errBox').style.display = 'none';
-    document.getElementById('expDate').value = todayStr();
-    document.getElementById('revDate').value = todayStr();
-    startListen();
+    try { localStorage.setItem('alkawthar_session', '1'); } catch (err) {}
+    enterApp();
   } else {
     document.getElementById('errBox').style.display = 'block';
     document.getElementById('inPass').value = '';
@@ -246,6 +251,7 @@ function doLogin() {
 }
 
 function doLogout() {
+  try { localStorage.removeItem('alkawthar_session'); } catch (err) {}
   TREF.off();
   document.getElementById('loginWrap').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
@@ -256,6 +262,15 @@ function doLogout() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && document.getElementById('loginWrap').style.display !== 'none') doLogin();
 });
+
+// ── AUTO LOGIN IF SESSION SAVED ──
+(function checkSession() {
+  try {
+    if (localStorage.getItem('alkawthar_session') === '1') {
+      enterApp();
+    }
+  } catch (err) {}
+})();
 
 function startListen() {
   TREF.on('value', function(snap) {
