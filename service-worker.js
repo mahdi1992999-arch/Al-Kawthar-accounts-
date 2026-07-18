@@ -2,8 +2,8 @@ const CACHE_NAME = 'masarif-alkawthar-v1';
 const CORE_ASSETS = [
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', function (event) {
