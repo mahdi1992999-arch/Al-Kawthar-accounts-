@@ -440,4 +440,321 @@ window.addEventListener('appinstalled', function() {
 });
 </script>
 </body>
+</html>  <div class="summ">
+    <div class="s-card s-rev"><div class="s-lbl">الإيرادات</div><div class="s-amt" id="sRev">0</div><div class="s-cur">دينار عراقي</div></div>
+    <div class="s-card s-exp"><div class="s-lbl">المصروفات</div><div class="s-amt" id="sExp">0</div><div class="s-cur">دينار عراقي</div></div>
+    <div class="s-card s-net"><div class="s-lbl">الصافي</div><div class="s-amt" id="sNet">+0</div><div class="s-cur">دينار عراقي</div></div>
+  </div>
+
+  <div class="forms">
+    <div class="f-card">
+      <div class="f-hdr exp"><span style="font-size:20px">💸</span><h3>إدخال مصروف جديد</h3></div>
+      <div class="f-body">
+        <div class="f-row">
+          <div>
+            <label class="f-lbl">المبلغ بالدينار العراقي</label>
+            <input class="f-inp f-num" type="number" id="expAmt" placeholder="0" min="0">
+          </div>
+          <div>
+            <label class="f-lbl">التاريخ</label>
+            <input class="f-inp" type="date" id="expDate">
+          </div>
+        </div>
+        <label class="f-lbl">التفاصيل والوصف</label>
+        <textarea class="f-ta" id="expDet" placeholder="اكتب تفاصيل المصروف هنا..."></textarea>
+        <button class="f-btn exp" id="expBtn" onclick="saveExpense()">＋ تسجيل المصروف</button>
+      </div>
+    </div>
+
+    <div class="f-card">
+      <div class="f-hdr rev"><span style="font-size:20px">💰</span><h3>إدخال إيراد جديد</h3></div>
+      <div class="f-body">
+        <div class="f-row">
+          <div>
+            <label class="f-lbl">المبلغ بالدينار العراقي</label>
+            <input class="f-inp f-num" type="number" id="revAmt" placeholder="0" min="0">
+          </div>
+          <div>
+            <label class="f-lbl">التاريخ</label>
+            <input class="f-inp" type="date" id="revDate">
+          </div>
+        </div>
+        <label class="f-lbl">التفاصيل والوصف</label>
+        <textarea class="f-ta" id="revDet" placeholder="اكتب تفاصيل الإيراد هنا..."></textarea>
+        <button class="f-btn rev" id="revBtn" onclick="saveRevenue()">＋ تسجيل الإيراد</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbl-sec">
+    <div class="tbl-top">
+      <h2>📋 سجل المعاملات المالية</h2>
+      <div class="tbl-ctrls">
+        <button class="f-btn2" id="f-all" onclick="setFilter('all')" style="background:rgba(200,164,74,.15);color:#e8c97a;border-color:rgba(200,164,74,.3)">الكل</button>
+        <button class="f-btn2" id="f-revenue" onclick="setFilter('revenue')" style="background:rgba(26,107,60,.2);color:#6bdc9a;border-color:rgba(34,168,92,.3)">الإيرادات</button>
+        <button class="f-btn2" id="f-expense" onclick="setFilter('expense')" style="background:rgba(139,26,26,.2);color:#f08080;border-color:rgba(192,57,43,.3)">المصروفات</button>
+        <button class="f-btn2" onclick="clearAll()" style="background:transparent;color:rgba(200,164,74,.35);border-color:rgba(200,164,74,.15)">مسح الكل</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>النوع</th><th>المبلغ (دينار)</th><th>التاريخ</th><th>التفاصيل</th><th style="text-align:center">حذف</th></tr>
+        </thead>
+        <tbody id="tBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast toast-info" id="toast"></div>
+<div class="install-banner" id="installBanner">
+  <span>📲 ثبّت تطبيق مصاريف الكوثر على هاتفك</span>
+  <button onclick="installApp()">تثبيت</button>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCpSI1GZenLb0NWuo03BW6Rwn814rQE_T0",
+  authDomain: "alkwther-account.firebaseapp.com",
+  databaseURL: "https://alkwther-account-default-rtdb.firebaseio.com",
+  projectId: "alkwther-account",
+  storageBucket: "alkwther-account.firebasestorage.app",
+  messagingSenderId: "606963034415",
+  appId: "1:606963034415:web:80e0387a84cd76572d99da"
+});
+
+var DB   = firebase.database();
+var TREF = DB.ref('transactions');
+var CREDS = { email: 'alkwther70@gmail.com', pass: '581261' };
+var allTx = [];
+var currentFilter = 'all';
+
+function fmt(n) { return new Intl.NumberFormat('en-US').format(Math.abs(n)); }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+function showToast(msg, cls) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + cls + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+function setSyncBadge(ok) {
+  var el = document.getElementById('syncBadge');
+  el.textContent = ok ? '☁️ متصل' : '⚠️ غير متصل';
+  el.className = ok ? 'sync-ok' : 'sync-err';
+}
+
+function enterApp() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('errBox').style.display = 'none';
+  document.getElementById('expDate').value = todayStr();
+  document.getElementById('revDate').value = todayStr();
+  startListen();
+}
+
+function doLogin() {
+  var e = document.getElementById('inEmail').value.trim();
+  var p = document.getElementById('inPass').value.trim();
+  if (e === CREDS.email && p === CREDS.pass) {
+    try { localStorage.setItem('alkawthar_session', '1'); } catch (err) {}
+    enterApp();
+  } else {
+    document.getElementById('errBox').style.display = 'block';
+    document.getElementById('inPass').value = '';
+  }
+}
+
+function doLogout() {
+  try { localStorage.removeItem('alkawthar_session'); } catch (err) {}
+  TREF.off();
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('inEmail').value = '';
+  document.getElementById('inPass').value = '';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('loginWrap').style.display !== 'none') doLogin();
+});
+
+// ── AUTO LOGIN IF SESSION SAVED ──
+(function checkSession() {
+  try {
+    if (localStorage.getItem('alkawthar_session') === '1') {
+      enterApp();
+    }
+  } catch (err) {}
+})();
+
+function startListen() {
+  TREF.on('value', function(snap) {
+    setSyncBadge(true);
+    allTx = [];
+    if (snap.exists()) {
+      snap.forEach(function(child) {
+        var d = child.val();
+        allTx.push({
+          id: child.key,
+          kind: d.kind,
+          amount: d.amount,
+          date: d.date,
+          details: d.details,
+          createdAt: d.createdAt
+        });
+      });
+      allTx.sort(function(a, b) { return b.createdAt - a.createdAt; });
+    }
+    render();
+  }, function() { setSyncBadge(false); });
+}
+
+function saveExpense() {
+  var amt  = parseFloat(document.getElementById('expAmt').value);
+  var date = document.getElementById('expDate').value;
+  var det  = document.getElementById('expDet').value.trim();
+  if (!amt || amt <= 0) { showToast('يرجى إدخال مبلغ صحيح', 'toast-error'); return; }
+  if (!date) { showToast('يرجى تحديد التاريخ', 'toast-error'); return; }
+  document.getElementById('expBtn').disabled = true;
+  TREF.push({
+    kind: 'expense',
+    amount: amt,
+    date: date,
+    details: det || '—',
+    createdAt: Date.now()
+  }).then(function() {
+    document.getElementById('expAmt').value = '';
+    document.getElementById('expDet').value = '';
+    document.getElementById('expBtn').disabled = false;
+    showToast('✓ تم تسجيل المصروف', 'toast-success');
+  }).catch(function(err) {
+    document.getElementById('expBtn').disabled = false;
+    showToast('فشل: ' + err.message, 'toast-error');
+  });
+}
+
+function saveRevenue() {
+  var amt  = parseFloat(document.getElementById('revAmt').value);
+  var date = document.getElementById('revDate').value;
+  var det  = document.getElementById('revDet').value.trim();
+  if (!amt || amt <= 0) { showToast('يرجى إدخال مبلغ صحيح', 'toast-error'); return; }
+  if (!date) { showToast('يرجى تحديد التاريخ', 'toast-error'); return; }
+  document.getElementById('revBtn').disabled = true;
+  TREF.push({
+    kind: 'revenue',
+    amount: amt,
+    date: date,
+    details: det || '—',
+    createdAt: Date.now()
+  }).then(function() {
+    document.getElementById('revAmt').value = '';
+    document.getElementById('revDet').value = '';
+    document.getElementById('revBtn').disabled = false;
+    showToast('✓ تم تسجيل الإيراد', 'toast-success');
+  }).catch(function(err) {
+    document.getElementById('revBtn').disabled = false;
+    showToast('فشل: ' + err.message, 'toast-error');
+  });
+}
+
+function deleteEntry(id) {
+  DB.ref('transactions/' + id).remove()
+    .then(function() { showToast('تم حذف السجل', 'toast-info'); })
+    .catch(function() { showToast('فشل الحذف', 'toast-error'); });
+}
+
+function clearAll() {
+  if (!confirm('مسح جميع السجلات؟ لا يمكن التراجع!')) return;
+  TREF.remove()
+    .then(function() { showToast('تم مسح جميع السجلات', 'toast-info'); })
+    .catch(function() { showToast('فشل المسح', 'toast-error'); });
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  var cfg = {
+    all:     { bg:'#9a7a30',   def:'rgba(200,164,74,.15)', col:'#e8c97a', brd:'rgba(200,164,74,.3)' },
+    revenue: { bg:'#1a6b3c',   def:'rgba(26,107,60,.2)',   col:'#6bdc9a', brd:'rgba(34,168,92,.3)' },
+    expense: { bg:'#8b1a1a',   def:'rgba(139,26,26,.2)',   col:'#f08080', brd:'rgba(192,57,43,.3)' }
+  };
+  ['all','revenue','expense'].forEach(function(k) {
+    var btn = document.getElementById('f-' + k);
+    var active = k === f;
+    btn.style.background   = active ? cfg[k].bg  : cfg[k].def;
+    btn.style.color        = active ? 'white'     : cfg[k].col;
+    btn.style.borderColor  = cfg[k].brd;
+  });
+  render();
+}
+
+function render() {
+  var rev = 0, exp = 0;
+  allTx.forEach(function(t) {
+    if (t.kind === 'revenue') rev += t.amount;
+    if (t.kind === 'expense') exp += t.amount;
+  });
+  var net = rev - exp;
+
+  document.getElementById('sRev').textContent = fmt(rev);
+  document.getElementById('sExp').textContent = fmt(exp);
+  var netEl = document.getElementById('sNet');
+  netEl.textContent = (net >= 0 ? '+' : '-') + fmt(net);
+  netEl.style.color = net >= 0 ? '#6bdc9a' : '#f08080';
+
+  var list = currentFilter === 'all' ? allTx : allTx.filter(function(t) {
+    return t.kind === currentFilter;
+  });
+
+  var tbody = document.getElementById('tBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div style="font-size:32px;margin-bottom:8px">📂</div><p style="font-size:13px">لا توجد سجلات لعرضها</p></div></td></tr>';
+    return;
+  }
+
+  var rows = '';
+  for (var i = 0; i < list.length; i++) {
+    var t = list[i];
+    var isRev = t.kind === 'revenue';
+    var bg = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)';
+    var amtColor = isRev ? '#6bdc9a' : '#f08080';
+    var badgeCls = isRev ? 'badge badge-rev' : 'badge badge-exp';
+    var badgeTxt = isRev ? 'إيراد' : 'مصروف';
+    rows += '<tr style="background:' + bg + '">';
+    rows += '<td style="color:rgba(200,164,74,.4);font-size:10px">' + (list.length - i) + '</td>';
+    rows += '<td><span class="' + badgeCls + '">' + badgeTxt + '</span></td>';
+    rows += '<td style="direction:ltr;text-align:left;font-weight:700;font-size:14px;color:' + amtColor + '">' + fmt(t.amount) + '</td>';
+    rows += '<td style="font-size:11px;color:rgba(245,240,232,.5)">' + t.date + '</td>';
+    rows += '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(245,240,232,.5);font-size:11px">' + t.details + '</td>';
+    rows += '<td style="text-align:center"><button class="del-btn" onclick="deleteEntry(\'' + t.id + '\')">حذف</button></td>';
+    rows += '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
+// ── PWA: Service Worker + Install ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('service-worker.js').catch(function(){});
+  });
+}
+var deferredPrompt;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('show');
+});
+function installApp() {
+  document.getElementById('installBanner').classList.remove('show');
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt = null;
+  }
+}
+window.addEventListener('appinstalled', function() {
+  document.getElementById('installBanner').classList.remove('show');
+});
+</script>
+</body>
 </html>
